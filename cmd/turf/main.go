@@ -18,6 +18,8 @@ func main() {
 		err = runInit(os.Args[2:])
 	case "install":
 		err = runInstall(os.Args[2:])
+	case "publish":
+		err = runPublish(os.Args[2:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
 		os.Exit(1)
