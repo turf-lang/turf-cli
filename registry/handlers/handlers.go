@@ -23,6 +23,12 @@ func Publish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	token := r.Header.Get("Authorization")
+	if token != "Bearer "+os.Getenv("TURF_TOKEN") {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	name := r.FormValue("name")
 	version := r.FormValue("version")
 

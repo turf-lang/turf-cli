@@ -11,6 +11,7 @@ import (
 
 	"github.com/turf-lang/turf-cli/internal/archive"
 	"github.com/turf-lang/turf-cli/internal/checksum"
+	"github.com/turf-lang/turf-cli/internal/config"
 	"github.com/turf-lang/turf-cli/internal/manifest"
 )
 
@@ -18,6 +19,11 @@ func runPublish(args []string) error {
 	m, err := manifest.Read("turf.toml")
 	if err != nil {
 		return fmt.Errorf("reading manifest: %w", err)
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("loading config: %w", err)
 	}
 
 	filename := fmt.Sprintf("%s-%s.tar.gz", m.Name, m.Version)
@@ -31,22 +37,22 @@ func runPublish(args []string) error {
 		return fmt.Errorf("resolving path: %w", err)
 	}
 
-	fmt.Printf("packed %s@%s  →  %s\n", m.Name, m.Version, absPath)
-
 	hash, err := checksum.Hash(filename)
 	if err != nil {
 		return fmt.Errorf("hashing archive: %w", err)
 	}
 
-	if err := pushToRegistry(filename, m.Name, m.Version, hash); err != nil {
+	fmt.Printf("packed %s@%s  →  %s\n", m.Name, m.Version, absPath)
+	fmt.Printf("sha256: %s\n", hash)
+
+	if err := pushToRegistry(filename, m.Name, m.Version, hash, cfg.Registry, cfg.Token); err != nil {
 		return fmt.Errorf("pushing to registry: %w", err)
 	}
 
-	fmt.Printf("sha256: %s\n", hash)
 	return nil
 }
 
-func pushToRegistry(filename, name, version, hash string) error {
+func pushToRegistry(filename, name, version, hash, registry, token string) error {
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 
@@ -70,11 +76,16 @@ func pushToRegistry(filename, name, version, hash string) error {
 
 	writer.Close()
 
-	resp, err := http.Post(
-		"http://localhost:8080/publish",
-		writer.FormDataContentType(),
-		&body,
-	)
+	req, err := http.NewRequest("POST", registry+"/publish", &body)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}

@@ -9,6 +9,7 @@ import (
 
 type Config struct {
 	Registry string
+	Token    string
 }
 
 func Load() (*Config, error) {
@@ -45,6 +46,8 @@ func Load() (*Config, error) {
 		switch key {
 		case "registry":
 			c.Registry = val
+		case "token":
+			c.Token = val
 		}
 	}
 
