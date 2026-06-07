@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/turf-lang/turf-cli/internal/manifest"
+	"github.com/turf-lang/turf-cli/internal/resolver"
 )
 
 func runInstall(args []string) error {
@@ -16,22 +16,34 @@ func runInstall(args []string) error {
 
 	src := filepath.Clean(args[0])
 
-	m, err := manifest.Read(filepath.Join(src, "turf.toml"))
+	visited := map[string]*resolver.Node{}
+	root, err := resolver.Build(src, visited)
 	if err != nil {
-		return fmt.Errorf("reading package manifest: %w", err)
+		return fmt.Errorf("resolving dependencies: %w", err)
 	}
 
-	dest := filepath.Join("turf_modules", m.Name)
+	order := []*resolver.Node{}
+	resolver.Resolve(root, map[string]bool{}, &order)
 
-	if err := os.MkdirAll(dest, 0o755); err != nil {
-		return fmt.Errorf("creating turf_modules/: %w", err)
+	for _, node := range order {
+		dest := filepath.Join("turf_modules", node.Manifest.Name)
+
+		if err := os.MkdirAll(dest, 0o755); err != nil {
+			return fmt.Errorf("creating turf_modules/: %w", err)
+		}
+
+		pkgSrc := filepath.Join(filepath.Dir(src), node.Manifest.Name)
+		if node.Manifest.Name == root.Manifest.Name {
+			pkgSrc = src
+		}
+
+		if err := copyDir(pkgSrc, dest); err != nil {
+			return fmt.Errorf("installing %s: %w", node.Manifest.Name, err)
+		}
+
+		fmt.Printf("installed %s@%s  →  turf_modules/%s\n", node.Manifest.Name, node.Manifest.Version, node.Manifest.Name)
 	}
 
-	if err := copyDir(src, dest); err != nil {
-		return fmt.Errorf("copying package: %w", err)
-	}
-
-	fmt.Printf("installed %s@%s  →  turf_modules/%s\n", m.Name, m.Version, m.Name)
 	return nil
 }
 
