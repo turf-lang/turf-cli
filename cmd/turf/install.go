@@ -15,6 +15,7 @@ import (
 	"github.com/turf-lang/turf-cli/internal/lockfile"
 	"github.com/turf-lang/turf-cli/internal/manifest"
 	"github.com/turf-lang/turf-cli/internal/resolver"
+	"github.com/turf-lang/turf-cli/internal/semver"
 )
 
 func runInstall(args []string) error {
@@ -123,23 +124,7 @@ func installLocal(src string) error {
 }
 
 func installFromRegistry(name string) error {
-	meta, err := fetchMeta(name)
-	if err != nil {
-		return err
-	}
-
-	version, hash, err := latestVersion(meta)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("resolving %s@%s\n", name, version)
-
-	if err := downloadAndInstall(name, version, hash); err != nil {
-		return err
-	}
-
-	return nil
+	return downloadAndInstall(name, "", "", "*")
 }
 
 type registryMeta struct {
@@ -166,25 +151,19 @@ func fetchMeta(name string) (*registryMeta, error) {
 	return &meta, nil
 }
 
-func latestVersion(meta *registryMeta) (version, hash string, err error) {
-	for v, h := range meta.Versions {
-		version = v
-		hash = h
-	}
-	if version == "" {
-		return "", "", fmt.Errorf("no versions available for %q", meta.Name)
-	}
-	return version, hash, nil
-}
-
-func downloadAndInstall(name, version, expectedHash string) error {
+func downloadAndInstall(name, version, expectedHash, constraint string) error {
 	if version == "" {
 		meta, err := fetchMeta(name)
 		if err != nil {
 			return err
 		}
+
+		if constraint == "" {
+			constraint = "*"
+		}
+
 		var err2 error
-		version, expectedHash, err2 = latestVersion(meta)
+		version, expectedHash, err2 = bestVersion(meta, constraint)
 		if err2 != nil {
 			return err2
 		}
@@ -212,8 +191,8 @@ func downloadAndInstall(name, version, expectedHash string) error {
 			return fmt.Errorf("reading installed manifest: %w", err)
 		}
 
-		for dep := range m.Dependencies {
-			if err := downloadAndInstall(dep, "", ""); err != nil {
+		for dep, depConstraint := range m.Dependencies {
+			if err := downloadAndInstall(dep, "", "", depConstraint); err != nil {
 				return err
 			}
 		}
@@ -239,7 +218,6 @@ func downloadAndInstall(name, version, expectedHash string) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
 
 	if _, err := io.Copy(out, resp.Body); err != nil {
 		return fmt.Errorf("saving archive: %w", err)
@@ -275,11 +253,26 @@ func downloadAndInstall(name, version, expectedHash string) error {
 		return fmt.Errorf("reading installed manifest: %w", err)
 	}
 
-	for dep := range m.Dependencies {
-		if err := downloadAndInstall(dep, "", ""); err != nil {
+	for dep, depConstraint := range m.Dependencies {
+		if err := downloadAndInstall(dep, "", "", depConstraint); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func bestVersion(meta *registryMeta, constraint string) (version, hash string, err error) {
+	available := make([]string, 0, len(meta.Versions))
+	for v := range meta.Versions {
+		available = append(available, v)
+	}
+
+	version, err = semver.Resolve(constraint, available)
+	if err != nil {
+		return "", "", fmt.Errorf("no version of %q satisfies %q", meta.Name, constraint)
+	}
+
+	hash = meta.Versions[version]
+	return version, hash, nil
 }

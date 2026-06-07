@@ -7,8 +7,11 @@
 *.dll
 *.so
 *.dylib
-turf
+/turf
 registry-server
+registry-data/
+*.tar.gz
+turf.lock
 
 # Test binary, built with `go test -c`
 *.test
