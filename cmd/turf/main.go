@@ -20,6 +20,12 @@ func main() {
 		err = runInstall(os.Args[2:])
 	case "publish":
 		err = runPublish(os.Args[2:])
+	case "add":
+		err = runAdd(os.Args[2:])
+	case "remove":
+		err = runRemove(os.Args[2:])
+	case "update":
+		err = runUpdate(os.Args[2:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
 		os.Exit(1)

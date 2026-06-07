@@ -77,5 +77,13 @@ func Write(path string, m *Manifest) error {
 	fmt.Fprintf(f, "name    = %q\n", m.Name)
 	fmt.Fprintf(f, "version = %q\n", m.Version)
 
+	if len(m.Dependencies) > 0 {
+		fmt.Fprintln(f, "")
+		fmt.Fprintln(f, "[dependencies]")
+		for pkg, constraint := range m.Dependencies {
+			fmt.Fprintf(f, "%-16s = %q\n", pkg, constraint)
+		}
+	}
+
 	return nil
 }

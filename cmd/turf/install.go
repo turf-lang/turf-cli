@@ -12,6 +12,7 @@ import (
 	"github.com/turf-lang/turf-cli/internal/archive"
 	"github.com/turf-lang/turf-cli/internal/cache"
 	"github.com/turf-lang/turf-cli/internal/checksum"
+	"github.com/turf-lang/turf-cli/internal/config"
 	"github.com/turf-lang/turf-cli/internal/lockfile"
 	"github.com/turf-lang/turf-cli/internal/manifest"
 	"github.com/turf-lang/turf-cli/internal/resolver"
@@ -20,7 +21,7 @@ import (
 
 func runInstall(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: turf install <path or package name>")
+		return installAll()
 	}
 
 	src := args[0]
@@ -123,8 +124,38 @@ func installLocal(src string) error {
 	return nil
 }
 
+func installAll() error {
+	m, err := manifest.Read("turf.toml")
+	if err != nil {
+		return fmt.Errorf("reading turf.toml: %w", err)
+	}
+
+	if len(m.Dependencies) == 0 {
+		fmt.Println("no dependencies to install")
+		return nil
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("loading config: %w", err)
+	}
+
+	for dep, constraint := range m.Dependencies {
+		if err := downloadAndInstall(dep, "", "", constraint, cfg.Registry); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func installFromRegistry(name string) error {
-	return downloadAndInstall(name, "", "", "*")
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("loading config: %w", err)
+	}
+
+	return downloadAndInstall(name, "", "", "*", cfg.Registry)
 }
 
 type registryMeta struct {
@@ -132,8 +163,8 @@ type registryMeta struct {
 	Versions map[string]string `json:"versions"`
 }
 
-func fetchMeta(name string) (*registryMeta, error) {
-	resp, err := http.Get("http://localhost:8080/package/" + name)
+func fetchMeta(name, registry string) (*registryMeta, error) {
+	resp, err := http.Get(registry + "/package/" + name)
 	if err != nil {
 		return nil, fmt.Errorf("contacting registry: %w", err)
 	}
@@ -151,9 +182,9 @@ func fetchMeta(name string) (*registryMeta, error) {
 	return &meta, nil
 }
 
-func downloadAndInstall(name, version, expectedHash, constraint string) error {
+func downloadAndInstall(name, version, expectedHash, constraint, registry string) error {
 	if version == "" {
-		meta, err := fetchMeta(name)
+		meta, err := fetchMeta(name, registry)
 		if err != nil {
 			return err
 		}
@@ -192,7 +223,7 @@ func downloadAndInstall(name, version, expectedHash, constraint string) error {
 		}
 
 		for dep, depConstraint := range m.Dependencies {
-			if err := downloadAndInstall(dep, "", "", depConstraint); err != nil {
+			if err := downloadAndInstall(dep, "", "", depConstraint, registry); err != nil {
 				return err
 			}
 		}
@@ -254,7 +285,7 @@ func downloadAndInstall(name, version, expectedHash, constraint string) error {
 	}
 
 	for dep, depConstraint := range m.Dependencies {
-		if err := downloadAndInstall(dep, "", "", depConstraint); err != nil {
+		if err := downloadAndInstall(dep, "", "", depConstraint, registry); err != nil {
 			return err
 		}
 	}
