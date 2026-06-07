@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/turf-lang/turf-cli/internal/lockfile"
 	"github.com/turf-lang/turf-cli/internal/resolver"
 )
 
@@ -43,6 +44,20 @@ func runInstall(args []string) error {
 
 		fmt.Printf("installed %s@%s  →  turf_modules/%s\n", node.Manifest.Name, node.Manifest.Version, node.Manifest.Name)
 	}
+
+	lf := &lockfile.Lockfile{}
+	for _, node := range order {
+		lf.Packages = append(lf.Packages, lockfile.Entry{
+			Name:    node.Manifest.Name,
+			Version: node.Manifest.Version,
+		})
+	}
+
+	if err := lockfile.Write("turf.lock", lf); err != nil {
+		return fmt.Errorf("writing lockfile: %w", err)
+	}
+
+	fmt.Println("written turf.lock")
 
 	return nil
 }
