@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/turf-lang/turf-cli/internal/archive"
+	"github.com/turf-lang/turf-cli/internal/cache"
 	"github.com/turf-lang/turf-cli/internal/checksum"
 	"github.com/turf-lang/turf-cli/internal/lockfile"
 	"github.com/turf-lang/turf-cli/internal/manifest"
@@ -189,6 +190,37 @@ func downloadAndInstall(name, version, expectedHash string) error {
 		}
 	}
 
+	if cache.Has(name, version) {
+		fmt.Printf("cached  %s@%s  →  turf_modules/%s\n", name, version, name)
+
+		archivePath, err := cache.Path(name, version)
+		if err != nil {
+			return err
+		}
+
+		dest := filepath.Join("turf_modules", name)
+		if err := os.MkdirAll(dest, 0o755); err != nil {
+			return err
+		}
+
+		if err := archive.Unpack(archivePath, dest); err != nil {
+			return fmt.Errorf("extracting %s from cache: %w", name, err)
+		}
+
+		m, err := manifest.Read(filepath.Join(dest, "turf.toml"))
+		if err != nil {
+			return fmt.Errorf("reading installed manifest: %w", err)
+		}
+
+		for dep := range m.Dependencies {
+			if err := downloadAndInstall(dep, "", ""); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+
 	url := fmt.Sprintf("http://localhost:8080/package/%s/%s/download", name, version)
 
 	resp, err := http.Get(url)
@@ -230,6 +262,10 @@ func downloadAndInstall(name, version, expectedHash string) error {
 
 	if err := archive.Unpack(archivePath, dest); err != nil {
 		return fmt.Errorf("extracting %s: %w", name, err)
+	}
+
+	if err := cache.Store(name, version, archivePath); err != nil {
+		fmt.Printf("warning: could not cache %s@%s: %v\n", name, version, err)
 	}
 
 	fmt.Printf("installed %s@%s  →  turf_modules/%s\n", name, version, name)
