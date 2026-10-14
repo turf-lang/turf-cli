@@ -116,36 +116,32 @@ driver interface does not fit: a different major, or an older minor than
 `version.Required`. However it was found, a differing *release* version is
 fine.
 
-## Two copies
+## Where it lives
 
-This tree lives in two places, byte for byte the same: `cli/` in
-[turf-lang](https://github.com/turf-lang/turf-lang) and the root of
-[turf-cli](https://github.com/turf-lang/turf-cli). Change it in turf-lang's
-`cli/`, where the smoke tests run it against the real compiler, then mirror it
-from the turf-lang checkout with
-
-```bash
-git -C ../turf-cli rm -rqf . && cp -a cli/. ../turf-cli/ && git -C ../turf-cli add -A
-```
-
-To retire the in-repo copy, delete `cli/`. Nothing else in turf-lang has to
-change: CMake builds `turf` from `TURF_CLI_DIR` (default: a `turf-cli` checkout
-next to turf-lang) and skips it if there is none, and the smoke tests read
-turf's source from the same place.
+This repository is the only copy of `turf`'s source. turf-lang builds `turf`
+from `TURF_CLI_DIR`, by default a turf-cli checkout next to the turf-lang one
+(`../turf-cli`), and skips it if there is none; its smoke tests read turf's
+source from the same place. turf-lang's
+`scripts/smoke/cli_source_smoke.sh` checks that its `build/turf` was built
+from this checkout's HEAD, from the module path and git revision Go stamps
+into the binary.
 
 ## Building and testing
 
-From a turf-lang checkout:
+Here:
+
+```bash
+go vet ./... && go test ./...
+```
+
+From a turf-lang checkout with this repository next to it:
 
 ```bash
 cmake --build build            # builds build/turfc and, if Go is installed, build/turf
-cd cli && go vet ./... && go test ./...
+./scripts/smoke/cli_source_smoke.sh  # build/turf is this checkout, at its HEAD
 ./scripts/smoke/cli_smoke.sh   # the front end against the real compiler
 ./scripts/smoke/project_smoke.sh  # projects: new/add/build/run/check, manifests, graph errors
 ```
-
-From turf-cli alone, `go vet ./... && go test ./...`; the smoke tests need a
-turf-lang checkout with this repository next to it.
 
 A plain `go build ./cmd/turf` works too, since nothing is stamped at build time.
 CMake just puts the result at `build/turf`, beside `build/turfc`, where it finds
