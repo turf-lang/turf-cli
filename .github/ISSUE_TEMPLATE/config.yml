@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Compiler, language or standard library issue
+    url: https://github.com/turf-lang/turf-lang/issues/new/choose
+    about: Bugs in turfc, the language itself or lib/std are tracked in the turf-lang repository.
