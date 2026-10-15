@@ -45,7 +45,7 @@ Checking and inspection:
 
 Diagnostics and safety:
   --smart                   on error, ask the local model for a validated fix
-  --smart-write-fix=<path>  write the first validated --smart fix here
+  --smart-write-fix=<path>  write the program with the shown fixes applied
   --stdlib-warnings         show warnings anchored inside the standard library
   --allow-unsafe-modules    honor 'unsafe module;' outside the install root
 
