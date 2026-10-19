@@ -75,7 +75,7 @@ func cmdTest(args []string) int {
 		for _, o := range only {
 			runArgs = append(runArgs, "--only", o)
 		}
-		runArgs = append(runArgs, flags...)
+		runArgs = p.withLints(runArgs, flags)
 		return driver.RunIn(p.dir, p.compiler, runArgs)
 	})
 }
@@ -84,6 +84,7 @@ func cmdTest(args []string) int {
 // so their value is not mistaken for a test path.
 var testValueFlags = map[string]bool{
 	"--jobs": true, "--timeout": true, "--exclude": true, "--only": true, "--link": true,
+	"--allow": true, "--warn": true, "--deny": true, "--lint-set": true,
 }
 
 // testPaths takes the test paths out of args: every argument that is not a
@@ -194,7 +195,8 @@ Test flags, handed to the compiler's runner unchanged:
                       TURF_TEST_TIMEOUT_SEC)
   --exclude <path>    skip this file or directory, relative to tests/ (repeatable)
 
-Compiler flags such as -O2, -g and --link <lib> are applied to every test's
-compile. -o and --package-graph are refused: turf owns them. The exit status is
+Compiler flags such as -O2, -g, --link <lib> and the lint levels (--allow,
+--warn, --deny, --lint-set; see 'turf help build' for [lints]) are applied to
+every test's compile. -o and --package-graph are refused: turf owns them. The exit status is
 0 when every test passed and 1 when one failed or nothing could run.
 `

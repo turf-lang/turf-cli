@@ -24,6 +24,36 @@ type Manifest struct {
 	Deps        map[string]Dep // [dependencies]
 	DepOrder    []string       // the keys of Deps in file order
 	UnsafeAllow []string       // [unsafe] allow
+	Lints       Lints          // [lints]
+}
+
+// Lints is the [lints] table (V-1): a level for diagnostic codes, and the
+// lint-set pin. The compiler decides which codes exist and which are warnings,
+// so this only checks the shape; a code the compiler does not have is refused
+// by the compiler, with its own message, when the build runs.
+type Lints struct {
+	Set    string      // lint-set = "2.N", or "" when not pinned
+	Levels []LintLevel // codes in sorted order
+}
+
+// LintLevel is one `E### = "allow" | "warn" | "deny"` line of [lints].
+type LintLevel struct {
+	Code, Level string
+}
+
+// Args spells the table as the compiler's own flags, the pin first. A
+// manifest has no effect the command line cannot have: `turf` passes these
+// ahead of the flags the user typed, so a flag on the command line wins over
+// the same code in the file.
+func (l Lints) Args() []string {
+	var args []string
+	if l.Set != "" {
+		args = append(args, "--lint-set", l.Set)
+	}
+	for _, e := range l.Levels {
+		args = append(args, "--"+e.Level, e.Code)
+	}
+	return args
 }
 
 // Dir is the directory holding the manifest, which every relative path in it
@@ -93,8 +123,10 @@ var reserved = []string{
 func ReservedWords() []string { return append([]string(nil), reserved...) }
 
 var (
-	identRe   = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
-	turfReqRe = regexp.MustCompile(`^[0-9]+\.[0-9]+$`)
+	identRe    = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+	turfReqRe  = regexp.MustCompile(`^[0-9]+\.[0-9]+$`)
+	lintCodeRe = regexp.MustCompile(`^E[0-9]{3}$`)
+	lintSetRe  = regexp.MustCompile(`^2\.[0-9]+$`)
 )
 
 // IsReserved reports whether name is a TurfLang reserved word.
@@ -150,9 +182,9 @@ func Parse(path string, data []byte) (*Manifest, error) {
 
 	for _, k := range sortedKeys(raw) {
 		switch k {
-		case "package", "dependencies", "unsafe":
+		case "package", "dependencies", "unsafe", "lints":
 		default:
-			return nil, p.errAt("", k, "unknown key `%s` at the top level: the tables are [package], [dependencies] and [unsafe]", k)
+			return nil, p.errAt("", k, "unknown key `%s` at the top level: the tables are [package], [dependencies], [unsafe] and [lints]", k)
 		}
 	}
 
@@ -191,6 +223,16 @@ func Parse(path string, data []byte) (*Manifest, error) {
 			return nil, p.errf("`unsafe` must be a table ([unsafe])", "")
 		}
 		if err := p.readUnsafe(m, ut); err != nil {
+			return nil, err
+		}
+	}
+
+	if l, ok := raw["lints"]; ok {
+		lt, ok := l.(map[string]any)
+		if !ok {
+			return nil, p.errf("`lints` must be a table ([lints])", "")
+		}
+		if err := p.readLints(m, lt); err != nil {
 			return nil, err
 		}
 	}
@@ -408,6 +450,35 @@ func (p *parser) readUnsafe(m *Manifest, t map[string]any) error {
 		}
 		seen[s] = true
 		m.UnsafeAllow = append(m.UnsafeAllow, s)
+	}
+	return nil
+}
+
+func (p *parser) readLints(m *Manifest, t map[string]any) error {
+	for _, k := range sortedKeys(t) {
+		s, ok := t[k].(string)
+		if !ok {
+			return p.errAt("lints", k, "`%s` in [lints] must be a string", k)
+		}
+		if k == "lint-set" {
+			if !lintSetRe.MatchString(s) {
+				return p.errAtHint("lints", k, `write the release whose warnings you want, as "2.N", for example "2.1"`,
+					"invalid `lint-set` in [lints]: '%s' is not \"2.N\"", s)
+			}
+			m.Lints.Set = s
+			continue
+		}
+		if !lintCodeRe.MatchString(k) {
+			return p.errAtHint("lints", k, "a level is set per diagnostic code, for example E163 = \"allow\"; the pin is lint-set = \"2.1\"",
+				"unknown key `%s` in [lints]: the keys are lint-set and diagnostic codes such as E163", k)
+		}
+		switch s {
+		case "allow", "warn", "deny":
+		default:
+			return p.errAtHint("lints", k, "allow hides the warning, warn shows it, deny makes it an error",
+				"invalid level for `%s` in [lints]: '%s' is not allow, warn or deny", k, s)
+		}
+		m.Lints.Levels = append(m.Lints.Levels, LintLevel{Code: k, Level: s})
 	}
 	return nil
 }

@@ -39,3 +39,9 @@ var RequiredForTestPaths = Interface{Major: 1, Minor: 7}
 // directory: interface 1.5. Like RequiredForTest it is checked by the one
 // command, not by the handshake every command runs.
 var RequiredForFmt = Interface{Major: 1, Minor: 5}
+
+// RequiredForLints is what a manifest with a [lints] table needs: the lint
+// levels, `--allow|--warn|--deny <code>` and `--lint-set 2.N`, interface 1.8
+// (V-1). Only a project that has the table is asked for it; every other build
+// still needs only Required.
+var RequiredForLints = Interface{Major: 1, Minor: 8}

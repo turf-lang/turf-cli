@@ -49,6 +49,13 @@ Diagnostics and safety:
   --stdlib-warnings         show warnings anchored inside the standard library
   --allow-unsafe-modules    honor 'unsafe module;' outside the install root
 
+Lint levels (chosen by whoever builds, never written in the source):
+  --allow <code>            do not report this warning (a code such as E163)
+  --warn <code>             report it and build anyway (every warning's default)
+  --deny <code>             report it as an error: the build fails
+  --lint-set <2.N>          a warning added after release 2.N starts at allow
+                            (an explicit level for its code still wins)
+
 Other compiler modes (also available as their own commands):
   --format [--write] <file>       turf fmt
   --migrate=pub [--write] <file>  turf migrate pub
