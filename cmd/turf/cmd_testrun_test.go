@@ -33,12 +33,39 @@ func TestTestInterfaceError(t *testing.T) {
 	}
 }
 
-// A project with no tests/ directory is an error and says how to start one;
-// it is decided before any compiler is looked for, so it holds on a machine
-// with no turfc at all.
-func TestTestWithoutATestsDirectoryIsAnError(t *testing.T) {
+// A project with no tests/ directory may keep its tests in src/, which only a
+// compiler of interface 1.11 or later looks at; an older one gets turf's own
+// error, which says how to start a tests/ directory.
+func TestSourceTestsSupported(t *testing.T) {
+	need := version.RequiredForSourceTests
+	cases := []struct {
+		got  version.Interface
+		want bool
+	}{
+		{need, true},
+		{version.Interface{Major: need.Major, Minor: need.Minor + 1}, true},
+		{version.Interface{Major: need.Major, Minor: need.Minor - 1}, false},
+		{version.Interface{Major: need.Major + 1, Minor: need.Minor}, false},
+	}
+	for _, tc := range cases {
+		if got := sourceTestsSupported(driver.CompilerInfo{Interface: tc.got}); got != tc.want {
+			t.Errorf("interface %d.%d: %v, want %v", tc.got.Major, tc.got.Minor, got, tc.want)
+		}
+	}
+	msg := noTestsDirMsg("/p/tests")
+	if !strings.Contains(msg, "has no tests/ directory") || !strings.Contains(msg, "tests/basic.tr") {
+		t.Errorf("message should name the missing directory and show a first test, got:\n%s", msg)
+	}
+}
+
+// A file called tests is not a tests directory, and that is decided before
+// any compiler is looked for, so it holds on a machine with no turfc at all.
+func TestTestsAsAFileIsAnError(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "turf.toml"), []byte("[package]\nname = \"app\"\nversion = \"0.1.0\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "tests"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	t.Chdir(dir)
@@ -60,16 +87,8 @@ func TestTestWithoutATestsDirectoryIsAnError(t *testing.T) {
 	if code != exitFailure {
 		t.Errorf("exit status = %d, want %d", code, exitFailure)
 	}
-	if !strings.Contains(msg, "has no tests/ directory") || !strings.Contains(msg, "tests/basic.tr") {
-		t.Errorf("message should name the missing directory and show a first test, got:\n%s", msg)
-	}
-
-	// A file called tests is not a tests directory.
-	if err := os.WriteFile(filepath.Join(dir, "tests"), nil, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if code := cmdTest(nil); code != exitFailure {
-		t.Errorf("tests as a file: exit status = %d, want %d", code, exitFailure)
+	if !strings.Contains(msg, "has no tests/ directory") {
+		t.Errorf("message should name the missing directory, got:\n%s", msg)
 	}
 }
 

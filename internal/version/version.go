@@ -33,6 +33,13 @@ var RequiredForTest = Interface{Major: 1, Minor: 3}
 // RequiredForTest.
 var RequiredForTestPaths = Interface{Major: 1, Minor: 7}
 
+// RequiredForSourceTests is what `turf test` needs in a project with no tests/
+// directory: a turfc that also runs the `@test` functions of the package's
+// src/ (TDP-2-006), interface 1.11, and decides itself whether the project has
+// any test. turf reads no TurfLang source, so it cannot answer that; an older
+// turfc can only be told there is no tests/ directory.
+var RequiredForSourceTests = Interface{Major: 1, Minor: 11}
+
 // RequiredForFmt is what `turf fmt` needs: the batch form of `turfc --format`
 // (several files, `--check`, a verified result), interface 1.4 (REL-002 stage
 // 2) and `--skip-unlexable`, which it passes for the files it found under a

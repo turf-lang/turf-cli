@@ -48,17 +48,19 @@ func cmdTest(args []string) int {
 		return failf("%v", err)
 	}
 	dir := filepath.Join(root, testsDirName)
-	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
-		return failf("this project has no %s/ directory (looked for %s)\n"+
-			"hint: create it and put test files in it, for example %s/basic.tr:\n\n%s",
-			testsDirName, dir, testsDirName, indent(testTemplate, "        "))
+	// A missing tests/ is not decided here: the package's src/ may hold @test
+	// functions, which only the compiler can see (RequiredForSourceTests).
+	st, statErr := os.Stat(dir)
+	haveTests := statErr == nil && st.IsDir()
+	if statErr == nil && !haveTests {
+		return failf("%s", noTestsDirMsg(dir))
 	}
 	only, flags, err := testPaths(flags, cwd, dir)
 	if err != nil {
 		return usagef("%v", err)
 	}
 
-	return withProjectGraph(nf, true, func(p *projectBuild) int {
+	return withProjectGraph(nf, haveTests, func(p *projectBuild) int {
 		info, err := driver.Probe(p.compiler)
 		if err != nil {
 			return failf("%v", err)
@@ -69,6 +71,9 @@ func cmdTest(args []string) int {
 		}
 		if err := testInterfaceError(info, p.compiler, need); err != nil {
 			return failf("%v", err)
+		}
+		if !haveTests && !sourceTestsSupported(info) {
+			return failf("%s", noTestsDirMsg(dir))
 		}
 		defer catchInterrupt()()
 		runArgs := []string{"--test", testsDirName, "--package-graph", p.graphArg()}
@@ -127,6 +132,21 @@ func testPaths(args []string, cwd, testsDir string) (only, rest []string, err er
 	return only, rest, nil
 }
 
+// noTestsDirMsg is the error for a project with no tests/ directory when the
+// compiler cannot look for tests anywhere else, with a first test to start from.
+func noTestsDirMsg(dir string) string {
+	return fmt.Sprintf("this project has no %s/ directory (looked for %s)\n"+
+		"hint: create it and put test files in it, for example %s/basic.tr:\n\n%s",
+		testsDirName, dir, testsDirName, indent(testTemplate, "        "))
+}
+
+// sourceTestsSupported is true when the compiler runs the @test functions of
+// the package's src/, so a project without tests/ may still have tests.
+func sourceTestsSupported(info driver.CompilerInfo) bool {
+	need := version.RequiredForSourceTests
+	return info.Interface.Major == need.Major && info.Interface.Minor >= need.Minor
+}
+
 // testInterfaceError is nil when the compiler has `--test`. A compiler that
 // predates it would answer `turfc --test` with "Unknown option", which says
 // nothing about the real problem (an old turfc), so it is asked up front.
@@ -158,8 +178,10 @@ Usage:
 
 Run anywhere inside a project. Every .tr file under the project's tests/
 directory (at any depth) is compiled and run by 'turfc --test', in parallel,
-with its own directory as the working directory. A project with no tests/
-directory, or with no tests in it, is an error.
+with its own directory as the working directory, and so is every @test
+function in the files of the project's src/ (see below). A project may keep
+all its tests in src/ and have no tests/ directory. A run that finds no test
+at all is an error.
 
 Given paths, it runs only those tests: each <path> is a test file or a
 directory of tests under tests/, written from the current directory
@@ -181,6 +203,16 @@ and comments in the file can pin why, not only whether:
   // EXPECT-NO-DIAG: some text  ... and must not have this text
   // EXPECT-RUNTIME: some text  the aborting program printed this text
   // EXPECT-EXIT: 134           the aborting program exited with this status
+
+A file with functions marked @test is judged test by test instead: each
+@test function runs in a process of its own and is reported as
+[tests] name.tr: function ... PASS, by the outcome its @test names (it returns;
+or @test(compile_error, E041, "text"), @test(warning, E172, "text"),
+@test(no_warnings), @test(panic, "text"), @test(exit, 3),
+@test(error, Type::Variant)). A normal build checks such functions and leaves
+them out of the program. A file of src/ with @test functions is a source of
+tests in the same way (reported under its directory, as in
+[src] main.tr: function ... PASS); its own main is the program, not a test. Paths given to turf test name tests/ only.
 
 A test imports what the package itself can: its own modules under src/, its
 direct dependencies and the standard library, plus helper modules (*_module.tr)
