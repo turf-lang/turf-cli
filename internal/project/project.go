@@ -439,32 +439,60 @@ func (g *Graph) CheckStdlibNames(std map[string]bool) error {
 // package keys are sorted (encoding/json sorts map keys) and each dependency
 // list keeps the manifest's declaration order, so rebuilding writes identical
 // bytes and the file is safe to diff and to commit to a cache key.
-func (g *Graph) JSON() ([]byte, error) { return g.json(false) }
+func (g *Graph) JSON() ([]byte, error) { return g.json(false, nil) }
 
 // JSONWithTests is JSON plus the root package's tests/ directory, which is what
 // `turfc --test` needs and no other compiler run should be given: a turfc older
 // than driver interface 1.3 rejects the key as unknown, so `turf build` must
 // keep writing the graph without it.
-func (g *Graph) JSONWithTests() ([]byte, error) { return g.json(true) }
+func (g *Graph) JSONWithTests() ([]byte, error) { return g.json(true, nil) }
 
-func (g *Graph) json(withTests bool) ([]byte, error) {
+// UnsafeSurface is what `turf graph --unsafe` adds to the graph (LB-2): each
+// package's "unsafe" object and the standard library's, as `turfc
+// --unsafe-report` wrote them, passed through unread.
+type UnsafeSurface struct {
+	Packages map[string]json.RawMessage
+	Stdlib   json.RawMessage
+}
+
+// JSONWithUnsafe is the graph with u added: an "unsafe" key in each package and
+// a top-level "stdlib". It is a report, not a compiler input: turfc rejects a
+// graph with keys it does not know, so `turf build` never writes this one.
+func (g *Graph) JSONWithUnsafe(withTests bool, u UnsafeSurface) ([]byte, error) {
+	return g.json(withTests, &u)
+}
+
+func (g *Graph) json(withTests bool, u *UnsafeSurface) ([]byte, error) {
 	type pkg struct {
-		Src         string   `json:"src"`
-		Deps        []string `json:"deps"`
-		AllowUnsafe bool     `json:"allow_unsafe"`
-		Tests       string   `json:"tests,omitempty"`
+		Src         string          `json:"src"`
+		Deps        []string        `json:"deps"`
+		AllowUnsafe bool            `json:"allow_unsafe"`
+		Tests       string          `json:"tests,omitempty"`
+		Unsafe      json.RawMessage `json:"unsafe,omitempty"`
+	}
+	type stdlib struct {
+		Unsafe json.RawMessage `json:"unsafe"`
 	}
 	out := struct {
 		Format   int            `json:"format"`
 		Root     string         `json:"root"`
 		Packages map[string]pkg `json:"packages"`
+		Stdlib   *stdlib        `json:"stdlib,omitempty"`
 	}{Format: 1, Root: g.Root.Name, Packages: map[string]pkg{}}
+	if u != nil {
+		out.Stdlib = &stdlib{Unsafe: u.Stdlib}
+	}
 	for name, p := range g.Packages {
 		deps := p.Deps
 		if deps == nil {
 			deps = []string{}
 		}
 		out.Packages[name] = pkg{Src: p.Src(), Deps: deps, AllowUnsafe: p.AllowUnsafe}
+		if u != nil {
+			e := out.Packages[name]
+			e.Unsafe = u.Packages[name]
+			out.Packages[name] = e
+		}
 		if withTests && p == g.Root {
 			e := out.Packages[name]
 			e.Tests = p.Tests()

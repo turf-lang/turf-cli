@@ -52,3 +52,9 @@ var RequiredForFmt = Interface{Major: 1, Minor: 5}
 // (V-1). Only a project that has the table is asked for it; every other build
 // still needs only Required.
 var RequiredForLints = Interface{Major: 1, Minor: 8}
+
+// RequiredForUnsafeReport is what `turf audit` and `turf graph --unsafe` need:
+// `turfc --unsafe-report`, each package's unsafe surface counted by the
+// compiler (LB-2), interface 1.12. turf reads no TurfLang source, so it cannot
+// count them itself; plain `turf graph` needs no compiler at all.
+var RequiredForUnsafeReport = Interface{Major: 1, Minor: 12}
