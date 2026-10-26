@@ -39,6 +39,9 @@ func TestParseValid(t *testing.T) {
 		{"unsafe allow", header + "[unsafe]\nallow = [\"ffi\", \"gpu\"]\n", Manifest{
 			Package: Package{Name: "app", Version: "0.1.0"}, Deps: map[string]Dep{},
 			UnsafeAllow: []string{"ffi", "gpu"}}},
+		{"lints", header + "[lints]\nlint-set = \"2.1\"\nE163 = \"allow\"\nE158 = \"deny\"\nE155 = \"warn\"\n", Manifest{
+			Package: Package{Name: "app", Version: "0.1.0"}, Deps: map[string]Dep{},
+			Lints: Lints{Set: "2.1", Levels: []LintLevel{{"E155", "warn"}, {"E158", "deny"}, {"E163", "allow"}}}}},
 		{"empty dependencies table and comments", "# a comment\n" + header + "\n[dependencies] # none yet\n", Manifest{
 			Package: Package{Name: "app", Version: "0.1.0"}, Deps: map[string]Dep{}}},
 	}
@@ -89,6 +92,13 @@ func TestParseErrors(t *testing.T) {
 		{"dependency on itself", header + "[dependencies]\napp = { path = \".\" }\n", "package 'app' depends on itself", nil},
 		{"dependency name reserved", header + "[dependencies]\nfor = { path = \"x\" }\n", "'for' is a reserved word", nil},
 		{"dependency name invalid", header + "[dependencies]\n\"a-b\" = { path = \"x\" }\n", "'a-b' is not a valid package name", nil},
+		{"lints not a table", "lints = 3\n" + header, "`lints` must be a table", nil},
+		{"lint level not a string", header + "[lints]\nE163 = true\n", "`E163` in [lints] must be a string", []string{"turf.toml:5"}},
+		{"lint level unknown", header + "[lints]\nE163 = \"forbid\"\n", "'forbid' is not allow, warn or deny", []string{"turf.toml:5"}},
+		{"lint key not a code", header + "[lints]\nunused = \"allow\"\n", "unknown key `unused` in [lints]", nil},
+		{"lint key a short code", header + "[lints]\nE16 = \"allow\"\n", "unknown key `E16` in [lints]", nil},
+		{"lint-set not 2.N", header + "[lints]\nlint-set = \"3.0\"\n", "'3.0' is not \"2.N\"", nil},
+		{"lint-set not a string", header + "[lints]\nlint-set = 2\n", "`lint-set` in [lints] must be a string", nil},
 		{"allow not a list", header + "[unsafe]\nallow = \"ffi\"\n", "must be a list of package names", nil},
 		{"allow not strings", header + "[unsafe]\nallow = [1]\n", "must be a list of strings", nil},
 		{"allow duplicate", header + "[unsafe]\nallow = [\"a\", \"a\"]\n", "lists 'a' twice", nil},
@@ -150,5 +160,16 @@ func TestReservedWords(t *testing.T) {
 	}
 	if n := len(ReservedWords()); n != 56 {
 		t.Errorf("reserved word count = %d; if the lexer's table changed, update the list (see Drift comment)", n)
+	}
+}
+
+func TestLintsArgs(t *testing.T) {
+	if got := (Lints{}).Args(); len(got) != 0 {
+		t.Fatalf("no table should give no flags, got %v", got)
+	}
+	l := Lints{Set: "2.1", Levels: []LintLevel{{"E158", "deny"}, {"E163", "allow"}}}
+	want := []string{"--lint-set", "2.1", "--deny", "E158", "--allow", "E163"}
+	if got := l.Args(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("Args() = %v, want %v", got, want)
 	}
 }

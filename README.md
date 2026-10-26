@@ -54,7 +54,8 @@ inside one; `turf` looks upward for the nearest manifest.
 | `turf check [--offline] [--locked] [flags]` | with no `.tr` argument: build's diagnostics, no executable |
 | `turf test [paths...] [--offline] [--locked]` | run every test under `tests/`, or only the named files and directories |
 | `turf clean` | remove `build/` |
-| `turf graph [--project <dir>] [--offline] [--locked]` | print the package graph as JSON on stdout, for editors and other tools; writes nothing |
+| `turf graph [--project <dir>] [--unsafe] [--offline] [--locked]` | print the package graph as JSON on stdout, for editors and other tools; writes nothing. `--unsafe` adds each package's unsafe surface, counted by the compiler |
+| `turf audit [--project <dir>] [--files] [--offline] [--locked]` | a table of where the unsafe code is: per package (and the standard library), its `unsafe module;` files, `unsafe { }` blocks, `extern fn`s and C libraries, and whether `[unsafe] allow` grants it; writes nothing |
 | `turf add <name> --path <dir>` | add a path dependency |
 | `turf add <name> --git <url> (--tag T \| --branch B \| --rev R)` | fetch and check a git dependency, then add it |
 | `turf remove <name>` | remove a dependency |
@@ -126,7 +127,7 @@ driver interface does not fit: a different major version, or a minor older than
 this `turf` requires. A differing release version is fine. `turf` and
 `turfc` are versioned independently, and `turf version` prints both.
 
-`turf graph` and `turf fetch` never run the compiler, so they work without one.
+`turf graph` (without `--unsafe`) and `turf fetch` never run the compiler, so they work without one. `turf audit` and `turf graph --unsafe` need a compiler of driver interface 1.12 or later.
 
 ## Development
 

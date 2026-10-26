@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"github.com/turf-lang/turf-cli/internal/manifest"
 	"github.com/turf-lang/turf-cli/internal/project"
 	"github.com/turf-lang/turf-cli/internal/stdlib"
+	"github.com/turf-lang/turf-cli/internal/version"
 )
 
 const noProjectMsg = "not inside a TurfLang project (no turf.toml here or in any parent directory); " +
@@ -27,7 +29,8 @@ const buildDirName = "build"
 type projectBuild struct {
 	dir      string // the project root, canonical
 	graph    *project.Graph
-	compiler string // absolute, so it still resolves when the child runs in dir
+	compiler string   // absolute, so it still resolves when the child runs in dir
+	lints    []string // the manifest's [lints] as compiler flags; passed before the user's own flags
 }
 
 func (p *projectBuild) name() string { return p.graph.Root.Name }
@@ -130,6 +133,12 @@ func withProjectGraph(nf netFlags, withTests bool, fn func(p *projectBuild) int)
 				return failf("%v", err)
 			}
 		}
+		lints := m.Lints.Args()
+		if len(lints) > 0 {
+			if err := lintInterfaceError(info, compiler); err != nil {
+				return failf("%v", err)
+			}
+		}
 		root := g.Root
 		if !root.HasMain() && !root.IsLibrary() {
 			return failf("package '%s' has neither src/main.tr (a program) nor src/%s.tr (a library)", root.Name, root.Name)
@@ -147,7 +156,7 @@ func withProjectGraph(nf netFlags, withTests bool, fn func(p *projectBuild) int)
 		if err != nil {
 			return failf("cannot render the package graph: %v", err)
 		}
-		p := &projectBuild{dir: root.Dir, graph: g, compiler: compiler}
+		p := &projectBuild{dir: root.Dir, graph: g, compiler: compiler, lints: lints}
 		if err := os.MkdirAll(filepath.Join(p.dir, buildDirName), 0o755); err != nil {
 			return failf("cannot create %s: %v", filepath.Join(p.dir, buildDirName), err)
 		}
@@ -168,7 +177,7 @@ func withProjectGraph(nf netFlags, withTests bool, fn func(p *projectBuild) int)
 func (p *projectBuild) compile(flags []string, checkOnly bool) int {
 	root := p.graph.Root
 	run := func(args []string) int {
-		return driver.RunIn(p.dir, p.compiler, append(args, flags...))
+		return driver.RunIn(p.dir, p.compiler, p.withLints(args, flags))
 	}
 	if root.HasMain() {
 		args := []string{"--package-graph", p.graphArg(), "src/main.tr"}
@@ -188,6 +197,31 @@ func (p *projectBuild) compile(flags []string, checkOnly bool) int {
 		}
 	}
 	return 0
+}
+
+// withLints is args followed by the manifest's lint flags and then the user's
+// own. The compiler reads them in order and a later level for a code replaces
+// an earlier one, so a `--allow E163` typed on the command line wins over
+// `E163 = "deny"` in turf.toml.
+func (p *projectBuild) withLints(args, flags []string) []string {
+	out := make([]string, 0, len(args)+len(p.lints)+len(flags))
+	out = append(out, args...)
+	out = append(out, p.lints...)
+	return append(out, flags...)
+}
+
+// lintInterfaceError is the refusal of a [lints] table by a compiler that
+// predates lint levels. Without it the table would be silently ignored and a
+// level the project asked for would never apply.
+func lintInterfaceError(info driver.CompilerInfo, compiler string) error {
+	need := version.RequiredForLints
+	if info.Interface.Major == need.Major && info.Interface.Minor >= need.Minor {
+		return nil
+	}
+	return fmt.Errorf("turf.toml has a [lints] table, which needs a compiler that speaks driver interface %d.%d or a later %d.x, "+
+		"but turfc %s (%s) speaks %d.%d\nhint: upgrade turfc, or point TURF_COMPILER at a newer one",
+		need.Major, need.Minor, need.Major, info.Release, compiler,
+		info.Interface.Major, info.Interface.Minor)
 }
 
 // catchInterrupt makes turf survive Ctrl-C so it can still return the child's
@@ -282,6 +316,14 @@ build/package-graph.json, and drives the compiler with it:
 so a library's errors show even when no program imports it. Compiler flags such
 as -O2 or -g are passed through. -o and --package-graph are refused: turf owns
 both. The exit status is the first failing compiler status.
+
+A [lints] table in turf.toml sets the level of any warning, and the same flags
+work on the command line, where they win over the table:
+
+  [lints]
+  lint-set = "2.1"      warnings added after 2.1 start at allow
+  E163 = "allow"        allow (not reported), warn (the default) or deny (an error)
+  E158 = "deny"
 
 Dependencies are 'path' (a directory) or 'git' (a URL with a tag, rev or
 branch). A git dependency is fetched once into the cache ($TURF_CACHE_DIR, else

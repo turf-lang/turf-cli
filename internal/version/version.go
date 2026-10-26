@@ -33,9 +33,28 @@ var RequiredForTest = Interface{Major: 1, Minor: 3}
 // RequiredForTest.
 var RequiredForTestPaths = Interface{Major: 1, Minor: 7}
 
+// RequiredForSourceTests is what `turf test` needs in a project with no tests/
+// directory: a turfc that also runs the `@test` functions of the package's
+// src/ (TDP-2-006), interface 1.11, and decides itself whether the project has
+// any test. turf reads no TurfLang source, so it cannot answer that; an older
+// turfc can only be told there is no tests/ directory.
+var RequiredForSourceTests = Interface{Major: 1, Minor: 11}
+
 // RequiredForFmt is what `turf fmt` needs: the batch form of `turfc --format`
 // (several files, `--check`, a verified result), interface 1.4 (REL-002 stage
 // 2) and `--skip-unlexable`, which it passes for the files it found under a
 // directory: interface 1.5. Like RequiredForTest it is checked by the one
 // command, not by the handshake every command runs.
 var RequiredForFmt = Interface{Major: 1, Minor: 5}
+
+// RequiredForLints is what a manifest with a [lints] table needs: the lint
+// levels, `--allow|--warn|--deny <code>` and `--lint-set 2.N`, interface 1.8
+// (V-1). Only a project that has the table is asked for it; every other build
+// still needs only Required.
+var RequiredForLints = Interface{Major: 1, Minor: 8}
+
+// RequiredForUnsafeReport is what `turf audit` and `turf graph --unsafe` need:
+// `turfc --unsafe-report`, each package's unsafe surface counted by the
+// compiler (LB-2), interface 1.12. turf reads no TurfLang source, so it cannot
+// count them itself; plain `turf graph` needs no compiler at all.
+var RequiredForUnsafeReport = Interface{Major: 1, Minor: 12}
