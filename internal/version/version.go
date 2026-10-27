@@ -6,7 +6,7 @@ package version
 // turf and turfc are released on their own schedules (FREEZE.md 6.16,
 // F-PKG-1), and `turf version` prints both. It is a plain constant, so a
 // plain `go build` produces a correctly versioned binary.
-const Version = "1.0.0"
+const Version = "1.1.0"
 
 // Interface is a turfc driver-interface version, `major.minor`, as printed on
 // line 2 of `turfc --version`.
