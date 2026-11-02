@@ -148,3 +148,26 @@ func TestTestPaths(t *testing.T) {
 		}
 	}
 }
+
+// TDP-2-026: a tag is a flag's value, not a test path, and either tag flag
+// asks for the compiler that knows them.
+func TestTagFlags(t *testing.T) {
+	root := t.TempDir()
+	tests := filepath.Join(root, "tests")
+	if err := os.MkdirAll(tests, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	only, rest, err := testPaths([]string{"--tag", "net", "--skip-tag", "slow"}, root, tests)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(only) != 0 {
+		t.Errorf("only = %q: a tag is not a path", only)
+	}
+	if strings.Join(rest, " ") != "--tag net --skip-tag slow" {
+		t.Errorf("rest = %q, want the tag flags passed on", rest)
+	}
+	if !hasTagFlag(rest) || !hasTagFlag([]string{"--skip-tag", "x"}) || hasTagFlag([]string{"--jobs", "2"}) {
+		t.Errorf("hasTagFlag is wrong")
+	}
+}

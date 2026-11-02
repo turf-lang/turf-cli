@@ -33,6 +33,11 @@ var RequiredForTest = Interface{Major: 1, Minor: 3}
 // RequiredForTest.
 var RequiredForTestPaths = Interface{Major: 1, Minor: 7}
 
+// RequiredForTestTags is what `turf test --tag <tag>` / `--skip-tag <tag>`
+// need: `turfc --test --tag`, with the `@test` options (TDP-2-026), interface
+// 1.13. A run without either flag needs no more than before.
+var RequiredForTestTags = Interface{Major: 1, Minor: 13}
+
 // RequiredForSourceTests is what `turf test` needs in a project with no tests/
 // directory: a turfc that also runs the `@test` functions of the package's
 // src/ (TDP-2-006), interface 1.11, and decides itself whether the project has
