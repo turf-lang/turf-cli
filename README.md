@@ -61,6 +61,7 @@ inside one; `turf` looks upward for the nearest manifest.
 | `turf remove <name>` | remove a dependency |
 | `turf fetch [--offline] [--locked]` | download and verify every git dependency, write `turf.lock`, compile nothing |
 | `turf update [name...]` | re-resolve the named git dependencies (all with no names); the only command that moves a pinned commit |
+| `turf upgrade [--check] [--version V] [--smart \| --plain]` | move this TurfLang install (turf, turfc, the standard library) to the latest or the named release, by running that release's own installer after checking it against the release's `checksums.txt`; only for an install made by `install.sh` or `install.ps1`. `--check` installs nothing. turf never looks for a release unless asked |
 
 `-o` and `--package-graph` are refused in a project build, since `turf` owns
 both. `--offline` and `--locked` belong to `turf` too and are never passed on

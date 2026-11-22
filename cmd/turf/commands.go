@@ -57,6 +57,7 @@ func init() {
 		{"update", groupProject, "update git dependencies", helpUpdate, cmdUpdate},
 
 		{"publish", groupOther, "reserved: there is no registry in 2.0", helpPublish, cmdPublish},
+		{"upgrade", groupOther, "move this install to another release", helpUpgrade, cmdUpgrade},
 		{"version", groupOther, "print the turf and turfc versions", helpVersion, cmdVersion},
 		{"help", groupOther, "show help: turf help <command>", helpHelp, cmdHelp},
 	}
