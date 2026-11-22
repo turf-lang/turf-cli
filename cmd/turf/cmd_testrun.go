@@ -69,6 +69,9 @@ func cmdTest(args []string) int {
 		if len(only) > 0 {
 			need = version.RequiredForTestPaths
 		}
+		if hasTagFlag(flags) {
+			need = version.RequiredForTestTags
+		}
 		if err := testInterfaceError(info, p.compiler, need); err != nil {
 			return failf("%v", err)
 		}
@@ -90,6 +93,18 @@ func cmdTest(args []string) int {
 var testValueFlags = map[string]bool{
 	"--jobs": true, "--timeout": true, "--exclude": true, "--only": true, "--link": true,
 	"--allow": true, "--warn": true, "--deny": true, "--lint-set": true,
+	"--tag": true, "--skip-tag": true,
+}
+
+// hasTagFlag reports whether the run selects tests by tag (TDP-2-026), which
+// needs a compiler that knows `--test --tag`.
+func hasTagFlag(flags []string) bool {
+	for _, f := range flags {
+		if f == "--tag" || f == "--skip-tag" {
+			return true
+		}
+	}
+	return false
 }
 
 // testPaths takes the test paths out of args: every argument that is not a
@@ -214,6 +229,14 @@ them out of the program. A file of src/ with @test functions is a source of
 tests in the same way (reported under its directory, as in
 [src] main.tr: function ... PASS); its own main is the program, not a test. Paths given to turf test name tests/ only.
 
+Options after the outcome say how a @test function is run (TDP-2-026):
+@test(skip: "reason") compiles it but does not run it, and lists it as
+SKIPPED with its reason, counted apart; timeout: <ms> fails it if it has not
+ended in time; levels: all or levels: [O0, O2] builds and runs it at each
+level; stdout: "text" requires exactly that output; tag: "net" or
+tag: ["net", "slow"] lets --tag and --skip-tag select it; serial marks a test
+that must never run beside another.
+
 A test imports what the package itself can: its own modules under src/, its
 direct dependencies and the standard library, plus helper modules (*_module.tr)
 beside it in tests/. The project is resolved first, so --offline and --locked
@@ -226,6 +249,9 @@ Test flags, handed to the compiler's runner unchanged:
   --timeout <sec>     how long one test program may run (default 5, or
                       TURF_TEST_TIMEOUT_SEC)
   --exclude <path>    skip this file or directory, relative to tests/ (repeatable)
+  --tag <tag>         run only the @test functions with this tag (repeatable:
+                      any of them); a file that is a test of its own has none
+  --skip-tag <tag>    do not run the @test functions with this tag (repeatable)
 
 Compiler flags such as -O2, -g, --link <lib> and the lint levels (--allow,
 --warn, --deny, --lint-set; see 'turf help build' for [lints]) are applied to
