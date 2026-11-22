@@ -6,7 +6,7 @@ package version
 // turf and turfc are released on their own schedules (FREEZE.md 6.16,
 // F-PKG-1), and `turf version` prints both. It is a plain constant, so a
 // plain `go build` produces a correctly versioned binary.
-const Version = "1.1.0"
+const Version = "1.2.0"
 
 // Interface is a turfc driver-interface version, `major.minor`, as printed on
 // line 2 of `turfc --version`.
@@ -32,6 +32,11 @@ var RequiredForTest = Interface{Major: 1, Minor: 3}
 // --only <path>`, interface 1.7. Plain `turf test` still needs only
 // RequiredForTest.
 var RequiredForTestPaths = Interface{Major: 1, Minor: 7}
+
+// RequiredForTestTags is what `turf test --tag <tag>` / `--skip-tag <tag>`
+// need: `turfc --test --tag`, with the `@test` options (TDP-2-026), interface
+// 1.13. A run without either flag needs no more than before.
+var RequiredForTestTags = Interface{Major: 1, Minor: 13}
 
 // RequiredForSourceTests is what `turf test` needs in a project with no tests/
 // directory: a turfc that also runs the `@test` functions of the package's

@@ -346,6 +346,55 @@ func TestJSONWithTestsNamesOnlyTheRootsTests(t *testing.T) {
 	}
 }
 
+// The graph's keys are exactly those of turf-lang's
+// docs/reference/schemas/package-graph.schema.json (IF-2): turfc rejects a
+// package key it does not know, so a key added here must come with the
+// schema, its fixtures and the driver interface minor that reads it.
+func TestJSONKeysAreThePackageGraphSchemas(t *testing.T) {
+	root := layout(t,
+		pkgSpec{dir: "app", name: "app", main: true, deps: "lib = " + dep("../lib")},
+		pkgSpec{dir: "lib", name: "lib", lib: true},
+	)
+	g, err := build(t, root, "app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	top := map[string]bool{"format": true, "root": true, "packages": true}
+	pkg := map[string]bool{"src": true, "deps": true, "allow_unsafe": true, "tests": true}
+	for name, render := range map[string]func() ([]byte, error){"JSON": g.JSON, "JSONWithTests": g.JSONWithTests} {
+		b, err := render()
+		if err != nil {
+			t.Fatal(err)
+		}
+		var doc map[string]json.RawMessage
+		if err := json.Unmarshal(b, &doc); err != nil {
+			t.Fatalf("%s: not JSON: %v", name, err)
+		}
+		for k := range doc {
+			if !top[k] {
+				t.Errorf("%s: top-level key %q is not in the schema", name, k)
+			}
+		}
+		var pkgs map[string]map[string]json.RawMessage
+		if err := json.Unmarshal(doc["packages"], &pkgs); err != nil {
+			t.Fatalf("%s: packages: %v", name, err)
+		}
+		for pn, p := range pkgs {
+			for k := range p {
+				if !pkg[k] {
+					t.Errorf("%s: package %s key %q is not in the schema", name, pn, k)
+				}
+			}
+			if _, ok := p["src"]; !ok {
+				t.Errorf("%s: package %s has no src", name, pn)
+			}
+		}
+		if string(doc["format"]) != "1" {
+			t.Errorf("%s: format = %s, want 1", name, doc["format"])
+		}
+	}
+}
+
 func TestCheckStdlibNames(t *testing.T) {
 	std := map[string]bool{"list": true, "io": true}
 	root := layout(t,
